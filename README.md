@@ -96,6 +96,23 @@ tsx bench/real-bench.ts /path/to/mcp.json --out bench/REAL-RESULTS.md --redact
 
 `--redact` anonymizes anything from your config before it hits the report: the config's file path, real server names (replaced with generic `kind-N` labels like `mongodb-1`), skip-reason details, and the actual content returned by end-to-end calls (replaced with a byte count). Use it any time the output might be committed or shared — drop it only for a private, local-only run.
 
+## Installation
+
+Published on npm: [@mcp-scout/mcp-scout](https://www.npmjs.com/package/@mcp-scout/mcp-scout).
+
+No install needed — run it directly with `npx` (this is also how it's invoked inside a client config below):
+
+```
+npx -y @mcp-scout/mcp-scout /path/to/your/mcp-servers.json
+```
+
+Or install it globally and use the plain `mcp-scout` command:
+
+```
+npm install -g @mcp-scout/mcp-scout
+mcp-scout /path/to/your/mcp-servers.json
+```
+
 ## Usage
 
 Point it at a config in the same shape as `.mcp.json` / `claude_desktop_config.json`:
