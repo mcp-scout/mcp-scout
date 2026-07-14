@@ -1,8 +1,8 @@
 # mcp-scout
 
 [![CI](https://github.com/mcp-scout/mcp-scout/actions/workflows/ci.yml/badge.svg)](https://github.com/mcp-scout/mcp-scout/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/%40raghudr15%2Fmcp-scout.svg)](https://www.npmjs.com/package/@raghudr15/mcp-scout)
-[![license](https://img.shields.io/npm/l/%40raghudr15%2Fmcp-scout.svg)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/%40mcp-scout%2Fmcp-scout.svg)](https://www.npmjs.com/package/@mcp-scout/mcp-scout)
+[![license](https://img.shields.io/npm/l/%40mcp-scout%2Fmcp-scout.svg)](LICENSE)
 
 An [MCP](https://modelcontextprotocol.io) server that sits between your client (Claude Desktop, Cursor, etc.) and all your *other* MCP servers.
 
@@ -116,7 +116,7 @@ Then register mcp-scout itself as the *only* server in your client's config:
   "mcpServers": {
     "scout": {
       "command": "npx",
-      "args": ["-y", "@raghudr15/mcp-scout", "/path/to/your/mcp-servers.json"]
+      "args": ["-y", "@mcp-scout/mcp-scout", "/path/to/your/mcp-servers.json"]
     }
   }
 }
