@@ -6,6 +6,8 @@
 
 An [MCP](https://modelcontextprotocol.io) server that sits between your client (Claude Desktop, Cursor, etc.) and all your *other* MCP servers.
 
+Open source, MIT licensed — contributions welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## The problem
 
 Connect an MCP client to a handful of servers and every tool's full JSON schema gets loaded into the model's context before it does anything — in this project's own benchmark, wiring up 5 real MCP servers (112 tools) cost 49,975 tokens of upfront schema, before a single tool was ever called (see [Benchmark](#benchmark)).
