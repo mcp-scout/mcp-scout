@@ -1,6 +1,6 @@
 {
   "name": "@mcp-scout/mcp-scout",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Scout your MCP tools before loading them: search_tools/describe_tools/call_tool meta-tools so clients don't pay the full tool-schema context tax upfront.",
   "type": "module",
   "bin": {

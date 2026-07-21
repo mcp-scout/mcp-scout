@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.3] - 2026-07-21
+
+### Changed
+- No functional changes. This release exists to verify the npm publish pipeline: switched from a
+  manual `npm publish` (OTP-based) to GitHub's Trusted Publisher / OIDC flow — no npm token stored
+  or used, publishing is triggered by a GitHub Release and authenticated per-run.
+
 ## [0.1.2] - 2026-07-21
 
 ### Added
