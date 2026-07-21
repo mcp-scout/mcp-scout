@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.1.1",
     "eslint": "^10.7.0",
     "gpt-tokenizer": "^3.4.0",
     "tsx": "^4.19.0",
