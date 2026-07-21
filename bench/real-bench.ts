@@ -38,7 +38,7 @@ function pct(before: number, after: number): string {
 }
 function withTimeout<T>(p: Promise<T>, label: string): Promise<T> {
   const t = new Promise<T>((_, rej) =>
-    setTimeout(() => rej(new Error(`timeout after ${CONNECT_TIMEOUT_MS}ms`)), CONNECT_TIMEOUT_MS),
+    setTimeout(() => rej(new Error(`${label}: timeout after ${CONNECT_TIMEOUT_MS}ms`)), CONNECT_TIMEOUT_MS),
   );
   return Promise.race([p, t]);
 }
