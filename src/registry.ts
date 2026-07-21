@@ -1,11 +1,21 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { CallToolResultSchema, type Tool } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResultSchema, ErrorCode, McpError, type Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { isHttpTarget, type GatewayConfig, type ServerTarget } from "./config.js";
+import { VERSION } from "./version.js";
 
-const GATEWAY_CLIENT_INFO = { name: "mcp-scout", version: "0.1.0" };
+// A downstream server can drop the connection mid-request (e.g. a docker-wrapped
+// server whose process dies). The SDK surfaces this as ConnectionClosed (-32000)
+// or a "Connection closed" message. We retry such calls exactly once against a
+// freshly reconnected client.
+function isConnectionClosed(err: unknown): boolean {
+  if (err instanceof McpError) return err.code === ErrorCode.ConnectionClosed;
+  return /connection closed|-32000/i.test((err as Error)?.message ?? "");
+}
+
+const GATEWAY_CLIENT_INFO = { name: "mcp-scout", version: VERSION };
 
 export type NamespacedTool = {
   id: string;
@@ -79,22 +89,41 @@ class Downstream {
     return this.clientPromise;
   }
 
+  private reset(): void {
+    this.clientPromise = null;
+    this.toolCache = null;
+  }
+
+  // Run an operation against the downstream, retrying exactly once (on a fresh
+  // connection) if the first attempt fails with a dropped connection.
+  private async withReconnect<T>(op: () => Promise<T>): Promise<T> {
+    try {
+      return await op();
+    } catch (err) {
+      if (!isConnectionClosed(err)) throw err;
+      this.reset();
+      return op();
+    }
+  }
+
   async listTools(forceRefresh = false): Promise<Tool[]> {
     if (this.toolCache && !forceRefresh) {
       return this.toolCache;
     }
-    const client = await this.getClient();
-    const tools: Tool[] = [];
-    let cursor: string | undefined;
-    do {
-      const result: { tools: Tool[]; nextCursor?: string } = await client.listTools(
-        cursor ? { cursor } : undefined,
-      );
-      tools.push(...result.tools);
-      cursor = result.nextCursor;
-    } while (cursor);
-    this.toolCache = tools;
-    return tools;
+    return this.withReconnect(async () => {
+      const client = await this.getClient();
+      const tools: Tool[] = [];
+      let cursor: string | undefined;
+      do {
+        const result: { tools: Tool[]; nextCursor?: string } = await client.listTools(
+          cursor ? { cursor } : undefined,
+        );
+        tools.push(...result.tools);
+        cursor = result.nextCursor;
+      } while (cursor);
+      this.toolCache = tools;
+      return tools;
+    });
   }
 
   async callTool(
@@ -102,12 +131,14 @@ class Downstream {
     args: unknown,
     timeoutMs: number,
   ): Promise<CallToolResult> {
-    const client = await this.getClient();
-    return client.callTool(
-      { name: bareName, arguments: (args ?? {}) as Record<string, unknown> },
-      CallToolResultSchema,
-      { timeout: timeoutMs, resetTimeoutOnProgress: true },
-    );
+    return this.withReconnect(async () => {
+      const client = await this.getClient();
+      return client.callTool(
+        { name: bareName, arguments: (args ?? {}) as Record<string, unknown> },
+        CallToolResultSchema,
+        { timeout: timeoutMs, resetTimeoutOnProgress: true },
+      );
+    });
   }
 
   async close(): Promise<void> {
@@ -131,6 +162,13 @@ export type ResolvedTool = {
   callTool: (args: unknown) => Promise<CallToolResult>;
 };
 
+export type ServerStatus = {
+  server: string;
+  status: "connected" | "failed";
+  toolCount: number;
+  error?: string;
+};
+
 export class Registry {
   private readonly downstreams: Map<string, Downstream>;
 
@@ -148,6 +186,29 @@ export class Registry {
 
   listServerNames(): string[] {
     return [...this.downstreams.keys()];
+  }
+
+  /**
+   * Probe every configured downstream and report per-server health, so an agent
+   * can see which servers are up (and their tool counts) vs. down (with the
+   * failure reason) without discovering it one failed call at a time.
+   */
+  async listServers(): Promise<ServerStatus[]> {
+    return Promise.all(
+      [...this.downstreams.entries()].map(async ([server, downstream]) => {
+        try {
+          const tools = await downstream.listTools();
+          return { server, status: "connected" as const, toolCount: tools.length };
+        } catch (err) {
+          return {
+            server,
+            status: "failed" as const,
+            toolCount: 0,
+            error: (err as Error).message,
+          };
+        }
+      }),
+    );
   }
 
   async getAllTools(): Promise<AllToolsResult> {

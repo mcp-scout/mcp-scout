@@ -2,11 +2,19 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ErrorCode, McpError, type CallToolResult, type Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { Registry } from "./registry.js";
-import { searchTools, type IndexedTool } from "./search.js";
+import { searchTools, type IndexedTool, type SearchStrategy } from "./search.js";
 import { compactSchema, signature, type JsonSchema } from "./schema-render.js";
+import { VERSION } from "./version.js";
 
 const GATEWAY_NAME = "mcp-scout";
-const GATEWAY_VERSION = "0.1.0";
+const GATEWAY_VERSION = VERSION;
+
+const GATEWAY_INSTRUCTIONS =
+  "mcp-scout proxies all your downstream MCP servers behind 4 meta-tools instead of " +
+  "exposing every tool's schema upfront. Workflow: call search_tools to find a tool by " +
+  "keyword (returns namespaced names + compact signatures), describe_tools for full " +
+  "parameter details, then call_tool to run it by its 'server.tool' name. Call " +
+  "list_servers to see which downstream servers are connected before relying on them.";
 
 function textResult(text: string, isError = false): CallToolResult {
   return { content: [{ type: "text", text }], isError };
@@ -38,13 +46,24 @@ async function buildIndex(registry: Registry): Promise<{
   return { index, byId, warnings };
 }
 
-async function suggestSimilar(registry: Registry, query: string): Promise<string[]> {
+async function suggestSimilar(
+  registry: Registry,
+  search: SearchStrategy,
+  query: string,
+): Promise<string[]> {
   const { index } = await buildIndex(registry);
-  return searchTools(index, query, 3).map((match) => match.id);
+  return (await search(index, query, 3)).map((match) => match.id);
 }
 
-export function buildGateway(registry: Registry): McpServer {
-  const server = new McpServer({ name: GATEWAY_NAME, version: GATEWAY_VERSION });
+export function buildGateway(
+  registry: Registry,
+  opts: { search?: SearchStrategy } = {},
+): McpServer {
+  const search = opts.search ?? searchTools;
+  const server = new McpServer(
+    { name: GATEWAY_NAME, version: GATEWAY_VERSION },
+    { instructions: GATEWAY_INSTRUCTIONS },
+  );
 
   server.registerTool(
     "search_tools",
@@ -61,7 +80,7 @@ export function buildGateway(registry: Registry): McpServer {
     },
     async ({ query, limit }) => {
       const { index, byId, warnings } = await buildIndex(registry);
-      const matches = searchTools(index, query, limit ?? 10);
+      const matches = await search(index, query, limit ?? 10);
       return textResult(
         JSON.stringify(
           {
@@ -140,7 +159,7 @@ export function buildGateway(registry: Registry): McpServer {
         resolved = await registry.resolve(name);
       } catch (err) {
         const message = (err as Error).message;
-        const suggestions = await suggestSimilar(registry, name).catch(() => []);
+        const suggestions = await suggestSimilar(registry, search, name).catch(() => []);
         const hint = suggestions.length > 0 ? ` Did you mean: ${suggestions.join(", ")}?` : "";
         return textResult(`${message}${hint}`, true);
       }
@@ -190,6 +209,28 @@ export function buildGateway(registry: Registry): McpServer {
         }
         return textResult(message, true);
       }
+    },
+  );
+
+  server.registerTool(
+    "list_servers",
+    {
+      description:
+        "List the configured downstream MCP servers and their health: which are " +
+        "connected (with tool counts) and which failed to connect (with the reason). " +
+        "Use this to avoid calling tools on a server that is currently down.",
+      inputSchema: {},
+    },
+    async () => {
+      const servers = await registry.listServers();
+      const connected = servers.filter((s) => s.status === "connected").length;
+      return textResult(
+        JSON.stringify(
+          { summary: `${connected}/${servers.length} connected`, servers },
+          null,
+          2,
+        ),
+      );
     },
   );
 

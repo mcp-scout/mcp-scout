@@ -46,6 +46,22 @@ describe("parseConfig", () => {
     ).toThrow(ConfigError);
   });
 
+  it("accepts an optional search.strategy block", () => {
+    const config = parseConfig({
+      mcpServers: { local: { command: "node", args: ["server.js"] } },
+      search: { strategy: "bm25" },
+    });
+    expect(config.search?.strategy).toBe("bm25");
+  });
+
+  it("accepts search.options for tuning the strategy's ranking weights", () => {
+    const config = parseConfig({
+      mcpServers: { local: { command: "node", args: ["server.js"] } },
+      search: { strategy: "bm25", options: { nameWeight: 5, substringBonus: 0 } },
+    });
+    expect(config.search?.options).toEqual({ nameWeight: 5, substringBonus: 0 });
+  });
+
   it("rejects a config missing mcpServers", () => {
     expect(() => parseConfig({})).toThrow(ConfigError);
   });

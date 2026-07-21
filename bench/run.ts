@@ -109,11 +109,16 @@ async function main(): Promise<void> {
   const viaGateway = await measureViaGateway();
 
   console.log(`Fixture: ${FIXTURE_SERVERS.length} servers, ${direct.toolCount} tools total\n`);
+  console.log(
+    '"Direct" below is the raw-injection baseline (every schema loaded, no deferral) — the real ' +
+      "cost in Cursor, LangGraph, the Claude Agent SDK, and most MCP-SDK clients. It is NOT the " +
+      "Claude Code app's cost, which defers schemas natively by default.\n",
+  );
   console.log("## Upfront context cost\n");
   console.log("| | Tools exposed | JSON bytes | Tokens (o200k_base) |");
   console.log("|---|---|---|---|");
   console.log(
-    `| Direct (${FIXTURE_SERVERS.length} servers connected individually) | ${direct.toolCount} | ${direct.bytes.toLocaleString()} | ${direct.tokens.toLocaleString()} |`,
+    `| Direct (raw injection, no native deferral; ${FIXTURE_SERVERS.length} servers) | ${direct.toolCount} | ${direct.bytes.toLocaleString()} | ${direct.tokens.toLocaleString()} |`,
   );
   console.log(
     `| Via mcp-scout | ${viaGateway.toolCount} | ${viaGateway.bytes.toLocaleString()} | ${viaGateway.tokens.toLocaleString()} |`,

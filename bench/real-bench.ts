@@ -1,9 +1,12 @@
 // Real-world benchmark: measures the tool-schema context tax against ACTUAL MCP
 // servers taken from a Cursor mcp.json, and proves mcp-scout works end-to-end.
 //
-//   Direct:      what a client (Cursor/Claude) pays to expose every downstream
-//                tool's full schema on every turn.
-//   Via scout:   what the client pays with only the 3 meta-tools exposed, plus
+//   Direct:      the RAW-INJECTION baseline — every downstream tool's full schema
+//                loaded with no deferral at all. This is the real cost in Cursor,
+//                LangGraph, the Claude Agent SDK, and most MCP-SDK clients. It is
+//                NOT the Claude Code app's cost — that app defers schemas itself
+//                by default (native Tool Search) and starts well below this number.
+//   Via scout:   what the client pays with only the 4 meta-tools exposed, plus
 //                the small per-task cost of a search_tools + describe_tools round.
 //
 // Usage: tsx bench/real-bench.ts <path-to-mcp.json> [--out results.md] [--redact]
@@ -134,7 +137,7 @@ async function main() {
   const displayId = (id: string) => (redact ? relabelId(id, labels) : id);
   const displayText = (text: string) => (redact ? relabelText(text, labels) : text);
 
-  // ---- VIA SCOUT: only the 3 meta-tools are exposed upfront ----
+  // ---- VIA SCOUT: only the 4 meta-tools are exposed upfront ----
   // Reuse the reachable servers so the gateway indexes the same live tools.
   const reachable = Object.fromEntries(
     perServer.map((s) => [s.server, config.mcpServers[s.server]]),
@@ -173,9 +176,9 @@ async function main() {
   const describeSamples = [
     "grafana.update_dashboard",
     "grafana.search_dashboards",
-    "mongodb-extranet-dev.find",
-    "mongodb-extranet-dev.aggregate",
-    "postgres-extranet-dev.execute_sql",
+    "mongodb-dev.find",
+    "mongodb-dev.aggregate",
+    "postgres-dev.execute_sql",
   ].filter((n) => available.has(n));
   const describeCmp: Array<{ tool: string; fullTokens: number; compactTokens: number }> = [];
   for (const tool of describeSamples) {
@@ -196,7 +199,7 @@ async function main() {
 
   // ---- Self-correction: call a known tool with bad args, capture the hint ----
   let selfCorrect: { tool: string; hint: string } | null = null;
-  const argTool = ["mongodb-extranet-dev.find", "postgres-extranet-dev.execute_sql", "grafana.search_dashboards"].find(
+  const argTool = ["mongodb-dev.find", "postgres-dev.execute_sql", "grafana.search_dashboards"].find(
     (n) => available.has(n),
   );
   if (argTool) {
@@ -213,10 +216,10 @@ async function main() {
   // Try genuinely zero-arg, read-only "list" tools until one returns real data.
   const e2eResults: Array<{ tool: string; ok: boolean; preview: string }> = [];
   const zeroArgCandidates = [
-    "mongodb-extranet-dev.list-databases",
-    "mongodb-extranet-staging.list-databases",
-    "postgres-extranet-dev.list_schemas",
-    "postgres-extranet-stage.list_schemas",
+    "mongodb-dev.list-databases",
+    "mongodb-staging.list-databases",
+    "postgres-dev.list_schemas",
+    "postgres-stage.list_schemas",
     "grafana.list_datasources",
   ].filter((n) => available.has(n));
   for (const chosen of zeroArgCandidates) {
@@ -260,19 +263,26 @@ async function main() {
   L();
   L(`## Upfront context cost (paid on EVERY turn)`);
   L();
+  L(
+    `**"Direct" = raw injection, no schema deferral** — the real cost in Cursor, LangGraph, the ` +
+      `Claude Agent SDK, and most MCP-SDK clients. It is NOT the Claude Code app's cost: that app ` +
+      `defers schemas itself by default (native Tool Search) and starts well below this number.`,
+  );
+  L();
   L(`| | Tools exposed | JSON bytes | Tokens |`);
   L(`|---|--:|--:|--:|`);
-  L(`| Direct (all servers connected) | ${allTools.length} | ${directSize.bytes.toLocaleString()} | ${directSize.tokens.toLocaleString()} |`);
+  L(`| Direct (raw injection, no native deferral; all servers connected) | ${allTools.length} | ${directSize.bytes.toLocaleString()} | ${directSize.tokens.toLocaleString()} |`);
   L(`| Via mcp-scout | ${metaTools.length} | ${scoutUpfront.bytes.toLocaleString()} | ${scoutUpfront.tokens.toLocaleString()} |`);
   L(`| **Reduction** | | **${pct(directSize.bytes, scoutUpfront.bytes)}** | **${pct(directSize.tokens, scoutUpfront.tokens)}** |`);
   L();
   L(`## Cost of a single tool call: without mcp-scout vs with`);
   L();
   L(
-    `Without mcp-scout, a client must have every downstream tool's schema loaded before it can call ` +
-      `*any* of them — so calling even one tool costs the full ${directSize.tokens.toLocaleString()}-token upfront ` +
-      `payload. With mcp-scout, calling one tool costs only the ${scoutUpfront.tokens.toLocaleString()}-token meta-tool ` +
-      `upfront cost plus that tool's own \`search_tools\` + \`describe_tools\` round:`,
+    `Without mcp-scout (raw injection, no native deferral), a client must have every downstream ` +
+      `tool's schema loaded before it can call *any* of them — so calling even one tool costs the ` +
+      `full ${directSize.tokens.toLocaleString()}-token upfront payload. With mcp-scout, calling one tool costs only ` +
+      `the ${scoutUpfront.tokens.toLocaleString()}-token meta-tool upfront cost plus that tool's own \`search_tools\` + ` +
+      `\`describe_tools\` round:`,
   );
   L();
   L(`| To call... | Without mcp-scout | With mcp-scout | Reduction |`);

@@ -3,13 +3,19 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ConfigError, loadConfig } from "./config.js";
 import { buildGateway } from "./gateway.js";
 import { Registry } from "./registry.js";
+import { resolveSearchStrategy } from "./search.js";
 
 const DEFAULT_CONFIG_PATH = "./mcp-scout.json";
 const DEFAULT_TIMEOUT_MS = 60_000;
 
-function parseArgs(argv: string[]): { configPath: string; timeoutMs: number } {
+function parseArgs(argv: string[]): {
+  configPath: string;
+  timeoutMs: number;
+  searchStrategy?: string;
+} {
   let configPath = DEFAULT_CONFIG_PATH;
   let timeoutMs = DEFAULT_TIMEOUT_MS;
+  let searchStrategy: string | undefined;
   const positionals: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
@@ -18,6 +24,8 @@ function parseArgs(argv: string[]): { configPath: string; timeoutMs: number } {
       configPath = argv[++i];
     } else if (arg === "--timeout") {
       timeoutMs = Number(argv[++i]);
+    } else if (arg === "--search") {
+      searchStrategy = argv[++i];
     } else {
       positionals.push(arg);
     }
@@ -32,11 +40,11 @@ function parseArgs(argv: string[]): { configPath: string; timeoutMs: number } {
     timeoutMs = DEFAULT_TIMEOUT_MS;
   }
 
-  return { configPath, timeoutMs };
+  return { configPath, timeoutMs, searchStrategy };
 }
 
 async function main(): Promise<void> {
-  const { configPath, timeoutMs } = parseArgs(process.argv.slice(2));
+  const { configPath, timeoutMs, searchStrategy } = parseArgs(process.argv.slice(2));
 
   let config;
   try {
@@ -49,8 +57,17 @@ async function main(): Promise<void> {
     throw err;
   }
 
+  // CLI flag overrides the config's search.strategy; both fall back to the default.
+  let search;
+  try {
+    search = resolveSearchStrategy(searchStrategy ?? config.search?.strategy, config.search?.options);
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
+  }
+
   const registry = new Registry(config, { timeoutMs });
-  const server = buildGateway(registry);
+  const server = buildGateway(registry, { search });
 
   const shutdown = async () => {
     await registry.closeAll();

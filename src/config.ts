@@ -19,9 +19,19 @@ const httpTargetSchema = z
 
 const serverTargetSchema = z.union([stdioTargetSchema, httpTargetSchema]);
 
+const searchConfigSchema = z
+  .object({
+    strategy: z.string().optional(),
+    // Strategy-specific tuning (e.g. bm25's weights); shape depends on the
+    // selected strategy, so it's validated by resolveSearchStrategy, not here.
+    options: z.record(z.unknown()).optional(),
+  })
+  .passthrough();
+
 const gatewayConfigSchema = z
   .object({
     mcpServers: z.record(serverTargetSchema),
+    search: searchConfigSchema.optional(),
   })
   .passthrough();
 
@@ -30,6 +40,7 @@ export type HttpTarget = z.infer<typeof httpTargetSchema>;
 export type ServerTarget = StdioTarget | HttpTarget;
 export type GatewayConfig = {
   mcpServers: Record<string, ServerTarget>;
+  search?: { strategy?: string; options?: Record<string, unknown> };
 };
 
 export function isHttpTarget(target: ServerTarget): target is HttpTarget {
