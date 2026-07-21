@@ -10,7 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20, 22]
+        # vitest@4 (engines: ^20.0.0 || ^22.0.0 || >=24.0.0) and eslint@10's
+        # formatter (needs util.styleText, added in Node 20.12) both hard-require
+        # Node 20+ — Node 18 was dropped from engines to match what's actually
+        # verifiable, not left in the matrix to fail on tooling we don't control.
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,9 +22,6 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
-      # eslint@10's default formatter calls util.styleText, which doesn't exist
-      # before Node 20.12 — lint is a dev-tooling gate, not a runtime
-      # compatibility check, so it only needs to run once.
       - run: npm run lint
         if: matrix.node-version == 20
       - run: npm run build
