@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Dry run (diagnose OIDC without actually publishing)"
+        description: "Dry run (build/test only, skip the actual publish)"
         type: boolean
         default: true
 
@@ -27,11 +27,6 @@ jobs:
       # version Node 22 happens to bundle.
       - run: npm install -g npm@latest
       - run: npm ci
-      - name: Debug OIDC environment (no secrets printed)
-        run: |
-          echo "npm version: $(npm --version)"
-          echo "ACTIONS_ID_TOKEN_REQUEST_URL set: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && echo yes || echo no)"
-          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN set: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo yes || echo no)"
       - run: npm run build
       - run: npm test
       # No token: authenticates via OIDC using the Trusted Publisher config on
