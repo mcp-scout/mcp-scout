@@ -18,6 +18,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      # eslint@10's default formatter calls util.styleText, which doesn't exist
+      # before Node 20.12 — lint is a dev-tooling gate, not a runtime
+      # compatibility check, so it only needs to run once.
       - run: npm run lint
+        if: matrix.node-version == 20
       - run: npm run build
       - run: npm test
