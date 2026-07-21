@@ -3,6 +3,12 @@ name: Publish
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (diagnose OIDC without actually publishing)"
+        type: boolean
+        default: true
 
 jobs:
   publish:
@@ -21,12 +27,17 @@ jobs:
       # version Node 22 happens to bundle.
       - run: npm install -g npm@latest
       - run: npm ci
+      - name: Debug OIDC environment (no secrets printed)
+        run: |
+          echo "npm version: $(npm --version)"
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL set: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && echo yes || echo no)"
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN set: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo yes || echo no)"
       - run: npm run build
       - run: npm test
       # No token: authenticates via OIDC using the Trusted Publisher config on
       # npmjs.com (package Settings -> Trusted Publisher -> this repo +
       # workflow filename). NODE_AUTH_TOKEN must be explicitly empty here —
       # setup-node's registry-url otherwise sets a default one that breaks OIDC.
-      - run: npm publish --provenance --access public
+      - run: npm publish --provenance --access public ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
         env:
           NODE_AUTH_TOKEN: ""
